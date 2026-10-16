@@ -13,7 +13,6 @@ const redirectUri = "http://127.0.0.1:3000/callback";
 const generateRandomString = (length) => {
   return crypto.randomBytes(60).toString("hex").slice(0, length);
 }
-
 const stateKey = "spotify_auth_state";
 
 const app = express();
@@ -65,11 +64,12 @@ app.get("/callback", async (req, res) => {
           grant_type: "authorization_code"
         })
       });
+
       if(response.status === 200) {
         const json = await response.json();
         spotifyAccessToken = json.access_token;
         spotifyRefreshToken = json.refresh_token;
-        res.redirect(`/currentPlayingTracks`);
+        res.redirect("/getCurrentPlayingTracks");
       } else {
         res.status(400).send({
           error: "invalid_token"
@@ -79,6 +79,7 @@ app.get("/callback", async (req, res) => {
     }
   } catch(error) {
     console.error(error.message);
+
     if(!res.headersSent) {
       res.status.send(500).send({
         error: "internal_server_error"
@@ -88,26 +89,25 @@ app.get("/callback", async (req, res) => {
 })
 
 let currentlyPlayingTrackName;
-// get currentlyPlayingTracks Info
-app.get("/currentPlayingTracks", async (req, res) => {
+
+// get spotifyAPI currentlyPlayingTracks data
+app.get("/getCurrentPlayingTracks", async (req, res) => {
   try {
-    const currentlyPlayingTrack = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    const currentlyPlayingTrackResponse = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
       method: "GET",
       headers : {
         "Authorization": "Bearer " + spotifyAccessToken
       }
     });
-    if(currentlyPlayingTrack.status === 200) {
-      const currentlyPlayingTrackJson = await currentlyPlayingTrack.json();
-      // console.log(Object.keys(currentlyPlayingTrackJson));
-      // console.log(Object.keys(currentlyPlayingTrackJson.item));
-      // console.log(currentlyPlayingTrackJson.item.name);
+
+    if(currentlyPlayingTrackResponse.status === 200) {
+      const currentlyPlayingTrackJson = await currentlyPlayingTrackResponse.json();
       currentlyPlayingTrackName = currentlyPlayingTrackJson.item.name;
-      res.status(200).json(currentlyPlayingTrackJson);
-    } else if(currentlyPlayingTrack.status === 204) {
+      res.redirect("/getSongs");
+    } else if(currentlyPlayingTrackResponse.status === 204) {
       res.status(204).send("再生中の楽曲がありません。");
     } else {
-      const currentlyPlayingTrackJson = await currentlyPlayingTrack.json();
+      const currentlyPlayingTrackJson = await currentlyPlayingTrackResponse.json();
       res.status(400).send({
         error: currentlyPlayingTrackJson.error.message
       });
@@ -115,8 +115,46 @@ app.get("/currentPlayingTracks", async (req, res) => {
     }
   } catch(error) {
     console.error(error.message);
+
     if(!res.headersSent) {
       res.status.send(500).send({
+        error: "internal_server_error"
+      });
+    }
+  }
+})
+
+const geniusClientAccessToken = process.env.GENIUS_API_CLIENT_ACCESS_TOKEN;
+let songId;
+
+// get geniusAPI songs data
+app.get("/getSongs", async (req, res) => {
+  try {
+    const songsResponse = await fetch("https://api.genius.com/search?" + 
+      querystring.stringify({
+        q: currentlyPlayingTrackName
+      }),
+      {
+        method: "GET",
+        headers: {
+          "Authorization": "Bearer " + geniusClientAccessToken
+        }
+      });
+    const songsJson = await songsResponse.json();
+    if(songsResponse.status === 200) {
+      songId = songsJson.response.hits[0].result.id;
+      res.redirect("/getLyric");
+    } else {
+      res.status(songsJson.meta.status).send({
+        error: songsJson.meta.message
+      });
+      throw new Error(songsJson.meta.message);
+    }
+    res.json(songsJson);
+  } catch(error) {
+    console.error(error.message);
+    if(!res.headersSent) {
+      res.status(500).send({
         error: "internal_server_error"
       });
     }
