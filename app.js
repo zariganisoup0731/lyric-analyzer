@@ -1,8 +1,9 @@
-require("dotenv").config();
-const express = require("express");
-const querystring = require("querystring");
-const crypto = require("node:crypto");
-const cookieParser = require("cookie-parser");
+import "dotenv/config";
+import express from "express";
+import querystring from "querystring";
+import crypto from "node:crypto";
+import cookieParser from "cookie-parser";
+import { getSong, getLyrics } from "genius-lyrics-api";
 
 const spotifyClientId = process.env.SPOTIFY_API_CLIENT_ID;
 const spotifyClientSecret = process.env.SPOTIFY_API_CLIENT_SECRET;
@@ -81,7 +82,7 @@ app.get("/callback", async (req, res) => {
     console.error(error.message);
 
     if(!res.headersSent) {
-      res.status.send(500).send({
+      res.status(500).send({
         error: "internal_server_error"
       });
     }
@@ -89,6 +90,7 @@ app.get("/callback", async (req, res) => {
 })
 
 let currentlyPlayingTrackName;
+let artistName;
 
 // get spotifyAPI currentlyPlayingTracks data
 app.get("/getCurrentPlayingTracks", async (req, res) => {
@@ -103,7 +105,10 @@ app.get("/getCurrentPlayingTracks", async (req, res) => {
     if(currentlyPlayingTrackResponse.status === 200) {
       const currentlyPlayingTrackJson = await currentlyPlayingTrackResponse.json();
       currentlyPlayingTrackName = currentlyPlayingTrackJson.item.name;
-      res.redirect("/getSongs");
+      // console.log(Object.keys(currentlyPlayingTrackJson));
+      artistName = currentlyPlayingTrackJson.item.artists[0].name;
+      // console.log(artistName);
+      res.redirect("/getLyrics");
     } else if(currentlyPlayingTrackResponse.status === 204) {
       res.status(204).send("再生中の楽曲がありません。");
     } else {
@@ -117,7 +122,7 @@ app.get("/getCurrentPlayingTracks", async (req, res) => {
     console.error(error.message);
 
     if(!res.headersSent) {
-      res.status.send(500).send({
+      res.status(500).send({
         error: "internal_server_error"
       });
     }
@@ -125,32 +130,22 @@ app.get("/getCurrentPlayingTracks", async (req, res) => {
 })
 
 const geniusClientAccessToken = process.env.GENIUS_API_CLIENT_ACCESS_TOKEN;
-let songId;
 
-// get geniusAPI songs data
-app.get("/getSongs", async (req, res) => {
+// get geniusAPI lyrics data
+app.get("/getLyrics", async (req, res) => {
   try {
-    const songsResponse = await fetch("https://api.genius.com/search?" + 
-      querystring.stringify({
-        q: currentlyPlayingTrackName
-      }),
-      {
-        method: "GET",
-        headers: {
-          "Authorization": "Bearer " + geniusClientAccessToken
-        }
-      });
-    const songsJson = await songsResponse.json();
-    if(songsResponse.status === 200) {
-      songId = songsJson.response.hits[0].result.id;
-      res.redirect("/getLyric");
+    const options = {
+      apiKey: geniusClientAccessToken,
+      title: currentlyPlayingTrackName,
+      artist: artistName,
+      optimizeQuery: true
+    };
+    const lyrics = await getLyrics(options);
+    if(lyrics === null) {
+      res.send("歌詞が見つかりませんでした。");
     } else {
-      res.status(songsJson.meta.status).send({
-        error: songsJson.meta.message
-      });
-      throw new Error(songsJson.meta.message);
+      console.log(lyrics);
     }
-    res.json(songsJson);
   } catch(error) {
     console.error(error.message);
     if(!res.headersSent) {
