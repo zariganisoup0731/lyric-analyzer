@@ -4,6 +4,7 @@ import querystring from "querystring";
 import crypto from "node:crypto";
 import cookieParser from "cookie-parser";
 import { getSong, getLyrics } from "genius-lyrics-api";
+import readline from "node:readline";
 
 const spotifyClientId = process.env.SPOTIFY_API_CLIENT_ID;
 const spotifyClientSecret = process.env.SPOTIFY_API_CLIENT_SECRET;
@@ -141,10 +142,30 @@ app.get("/getLyrics", async (req, res) => {
       optimizeQuery: true
     };
     const lyrics = await getLyrics(options);
+
     if(lyrics === null) {
       res.send("歌詞が見つかりませんでした。");
     } else {
-      console.log(lyrics);
+      console.log("歌詞の取得に成功しました。");
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      })
+      console.log("取得した歌詞のGeminiによる分析を行いますか？\n1：はい\n2：いいえ");
+      rl.on("line", (input) => {
+        if(input === "1") {
+          console.log(lyrics);
+          res.send(1);
+          rl.close();
+          return;
+        } else if(input === "2") {
+          res.status(200).send(`<pre>${lyrics}<pre>`);
+          rl.close();
+          process.exit(0);
+        } else {
+          console.log("不適切な値が入力されました。\n1,2のどちらかを入力してください。");
+        }
+      })
     }
   } catch(error) {
     console.error(error.message);
