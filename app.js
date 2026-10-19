@@ -3,8 +3,9 @@ import express from "express";
 import querystring from "querystring";
 import crypto from "node:crypto";
 import cookieParser from "cookie-parser";
-import { getSong, getLyrics } from "genius-lyrics-api";
+import getLyrics from "genius-lyrics-api";
 import readline from "node:readline";
+import { GoogleGenAI } from "@google/genai";
 
 const spotifyClientId = process.env.SPOTIFY_API_CLIENT_ID;
 const spotifyClientSecret = process.env.SPOTIFY_API_CLIENT_SECRET;
@@ -20,7 +21,7 @@ const stateKey = "spotify_auth_state";
 const app = express();
 app.use(cookieParser());
 const port = 3000;
-const server = app.listen(port, () => {
+app.listen(port, () => {
   console.log(`App listening on port ${port}`);
 })
 
@@ -71,7 +72,7 @@ app.get("/callback", async (req, res) => {
         const json = await response.json();
         spotifyAccessToken = json.access_token;
         spotifyRefreshToken = json.refresh_token;
-        res.redirect("/getCurrentPlayingTracks");
+        res.redirect("/getCurrentlyPlayingTracks");
       } else {
         res.status(400).send({
           error: "invalid_token"
@@ -94,7 +95,7 @@ let currentlyPlayingTrackName;
 let artistName;
 
 // get spotifyAPI currentlyPlayingTracks data
-app.get("/getCurrentPlayingTracks", async (req, res) => {
+app.get("/getCurrentlyPlayingTracks", async (req, res) => {
   try {
     const currentlyPlayingTrackResponse = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
       method: "GET",
@@ -106,9 +107,7 @@ app.get("/getCurrentPlayingTracks", async (req, res) => {
     if(currentlyPlayingTrackResponse.status === 200) {
       const currentlyPlayingTrackJson = await currentlyPlayingTrackResponse.json();
       currentlyPlayingTrackName = currentlyPlayingTrackJson.item.name;
-      // console.log(Object.keys(currentlyPlayingTrackJson));
       artistName = currentlyPlayingTrackJson.item.artists[0].name;
-      // console.log(artistName);
       res.redirect("/getLyrics");
     } else if(currentlyPlayingTrackResponse.status === 204) {
       res.status(204).send("再生中の楽曲がありません。");
@@ -130,18 +129,20 @@ app.get("/getCurrentPlayingTracks", async (req, res) => {
   }
 })
 
-const geniusClientAccessToken = process.env.GENIUS_API_CLIENT_ACCESS_TOKEN;
+let lyrics;
 
 // get geniusAPI lyrics data
 app.get("/getLyrics", async (req, res) => {
-  try {
-    const options = {
+  const geniusClientAccessToken = process.env.GENIUS_API_CLIENT_ACCESS_TOKEN;
+  const options = {
       apiKey: geniusClientAccessToken,
       title: currentlyPlayingTrackName,
       artist: artistName,
       optimizeQuery: true
     };
-    const lyrics = await getLyrics(options);
+
+  try {
+    lyrics = await getLyrics(options);
 
     if(lyrics === null) {
       res.send("歌詞が見つかりませんでした。");
@@ -155,12 +156,11 @@ app.get("/getLyrics", async (req, res) => {
       rl.on("line", (input) => {
         if(input === "1") {
           console.log(lyrics);
-          res.send(1);
           rl.close();
-          return;
+          res.redirect("/geminiAnalyzeLyrics");
         } else if(input === "2") {
-          res.status(200).send(`<pre>${lyrics}<pre>`);
           rl.close();
+          res.status(200).send(`<pre>${lyrics}<pre>`);
           process.exit(0);
         } else {
           console.log("不適切な値が入力されました。\n1,2のどちらかを入力してください。");
@@ -175,4 +175,14 @@ app.get("/getLyrics", async (req, res) => {
       });
     }
   }
+})
+
+// geminiAPI analyze lyrics
+app.get("/geminiAnalyzeLyrics", async(req, res) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  const stream = await ai.interactions.create({
+    model: "gemini-2.5-flash-lite",
+    input: ""
+  })
 })
