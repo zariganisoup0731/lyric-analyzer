@@ -32,6 +32,10 @@ https://github.com/user-attachments/assets/5436f0f1-19d6-4809-8421-02dba7b0138a
 * 歌詞情報の取得を、GeminiにGoogle検索によるグラウンディングで取得させるのではなく、GeniusAPIを利用することでトークン消費量を削減
 * 簡潔な操作
 
+## 今後の展望
+* CLIでの操作に留まらず、Webアプリ化することでより利用しやすい形にする
+* 形態素解析結果を活用し、発展的な解析に繋げる
+
 ## 使用言語・技術など
 * JavaScript
 * node.js
