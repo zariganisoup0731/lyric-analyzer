@@ -6,8 +6,8 @@ import cookieParser from "cookie-parser";
 import { getLyrics } from "genius-lyrics-api";
 import * as readline from "node:readline";
 import { GoogleGenAI } from "@google/genai";
-import { readFile } from "node:fs/promises"
-import { resolve } from "node:dns";
+import { readFile } from "node:fs/promises";
+import kuromoji from "kuromoji";
 
 const spotifyClientId = process.env.SPOTIFY_API_CLIENT_ID;
 const spotifyClientSecret = process.env.SPOTIFY_API_CLIENT_SECRET;
@@ -113,6 +113,7 @@ app.get("/getCurrentlyPlayingTracks", async (req, res) => {
       res.redirect("/getLyrics");
     } else if(currentlyPlayingTrackResponse.status === 204) {
       res.status(204).send("再生中の楽曲がありません。");
+      console.log("再生中の楽曲がありません。");
     } else {
       const currentlyPlayingTrackJson = await currentlyPlayingTrackResponse.json();
       res.status(400).send({
@@ -156,7 +157,6 @@ app.get("/getLyrics", async (req, res) => {
     };
   const onLineHandler = (input) => {
     if(input === "1") {
-      console.log(lyrics);
       rl.off("line", onLineHandler);
       rl.pause();
       res.redirect("/setGeminiAnalyzeOption");
@@ -175,6 +175,7 @@ app.get("/getLyrics", async (req, res) => {
 
     if(lyrics === null) {
       res.send("歌詞が見つかりませんでした。");
+      console.log("歌詞が見つかりませんでした。");
     } else {
       songData = {
         title: currentlyPlayingTrackName,
@@ -197,11 +198,10 @@ app.get("/getLyrics", async (req, res) => {
   }
 })
 
+let prompt;
+
 // set geminiAPI analyze option
 app.get("/setGeminiAnalyzeOption", async(req, res) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  let prompt;
-
   console.log("分析オプションを選択してください。\n1：歌詞の雰囲気、込められた意図などを推論させる\n2：取得した歌詞をもとに形態素解析を行う（日本語詞限定）\n3：任意のプロンプトを与える");
 
   try {
@@ -210,26 +210,69 @@ app.get("/setGeminiAnalyzeOption", async(req, res) => {
       if(input === "1") {
         rl.close();
         prompt = analyzeLyricsPrompt;
-        res.send(prompt);
+        res.redirect("/geminiAnalyzeLyrics");
       } else if(input === "2") {
         rl.close();
         prompt = formatLyricsPrompt;
-        res.send(prompt);
+        res.redirect("/geminiAnalyzeLyrics");
       } else if(input === "3") {
-        rl.question("geminiに与えるプロンプトを入力してください。", (answer) => {
+        rl.question("geminiに与えるプロンプトを入力してください。> ", (answer) => {
           rl.close();
           prompt = `${answer}\n楽曲名：${currentlyPlayingTrackName}\nアーティスト名：${artistName}\n歌詞：${lyrics}`;
-          res.send(prompt);
+          res.redirect("/geminiAnalyzeLyrics");
         });
       } else {
         console.log("不適切な値が入力されました。\n1,2,3のいずれかを入力してください。");
       }
     })
+  } catch(error) {
+    console.error(error.message);
 
-    // const stream = await ai.interactions.create({
-    //   model: "gemini-2.5-flash-lite",
-    //   input: prompt
-    // })
+    if(!res.headersSent) {
+      res.status(500).send({
+        error: "internal_server_error"
+      });
+    }
+  }
+})
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const buildTokenizer = () => {
+  return new Promise((resolve, reject) => {
+    kuromoji.builder({ dicPath: "node_modules/kuromoji/dict" }).build((error, tokenizer) => {
+      if(error) {
+        reject(error);
+      } else {
+        resolve(tokenizer);
+      }
+    });
+  });
+};
+
+app.get("/geminiAnalyzeLyrics", async(req, res) => {
+  try {
+    const interaction = await ai.interactions.create({
+      model: "gemini-3.1-flash-lite",
+      input: prompt
+    });
+
+    if(prompt === formatLyricsPrompt) {
+      if(interaction.output_text === "null") {
+        console.log("日本語詞ではないため、形態素解析が行えません。");
+        res.send(`<pre>日本語詞ではないため、形態素解析が行えません。\n${lyrics}<pre>`);
+        process.exit(0);
+      } else {
+        const tokenizer = await buildTokenizer();
+        const tokens = tokenizer.tokenize(interaction.output_text);
+        console.log("形態素解析が完了しました。");
+        res.json(tokens);
+        process.exit(0);
+      }
+    } else {
+      console.log("分析が完了しました。");
+      res.status(200).send(`<pre>${interaction.output_text}<pre>`);
+      process.exit(0);
+    }
   } catch(error) {
     console.error(error.message);
 
