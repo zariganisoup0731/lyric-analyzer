@@ -9,7 +9,6 @@ https://github.com/user-attachments/assets/409868ae-c254-45c5-ae05-3aa5887f2a94
 
 https://github.com/user-attachments/assets/5436f0f1-19d6-4809-8421-02dba7b0138a
 
-
 ## 制作意図
 近年の考察ブームの影響で、楽曲の歌詞について意見が飛び交うことも少なくない。  
 自分自身も音楽は日常的に耳にしているが、作業中に聴くことが多く、じっくりと歌詞について考える時間はそこまで多くないが、ふと今再生している曲の歌詞が気になることがある。  
@@ -33,7 +32,7 @@ https://github.com/user-attachments/assets/5436f0f1-19d6-4809-8421-02dba7b0138a
 * 歌詞情報の取得を、GeminiにGoogle検索によるグラウンディングで取得させるのではなく、GeniusAPIを利用することでトークン消費量を削減
 * 簡潔な操作
 
-# 使用言語・技術など
+## 使用言語・技術など
 * JavaScript
 * node.js
 * express.js
