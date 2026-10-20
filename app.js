@@ -263,7 +263,7 @@ app.get("/geminiAnalyzeLyrics", async(req, res) => {
         process.exit(0);
       } else {
         const tokenizer = await buildTokenizer();
-        const tokens = tokenizer.tokenize(interaction.output_text);
+        const tokens = tokenizer.tokenize(interaction.output_text.replace(/\s/g, ""));
         console.log("形態素解析が完了しました。");
         res.json(tokens);
         process.exit(0);
