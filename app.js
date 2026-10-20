@@ -185,7 +185,7 @@ app.get("/getLyrics", async (req, res) => {
       analyzeLyricsPrompt = buildPrompt(analyzeLyricsPromptTemplate, songData);
       formatLyricsPrompt = buildPrompt(formatLyricsPromptTemplate, songData);
       console.log("歌詞の取得に成功しました。");
-      console.log("取得した歌詞のGeminiによる分析を行いますか？\n1：はい\n2：いいえ");
+      console.log("取得した歌詞のGeminiによる分析を行いますか？\n1：はい\n2：いいえ（取得した歌詞を表示します。）");
       rl.on("line", onLineHandler);
     }
   } catch(error) {
