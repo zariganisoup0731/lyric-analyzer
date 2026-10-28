@@ -23,7 +23,7 @@ const stateKey = "spotify_auth_state";
 const app = express();
 app.use(cookieParser());
 const port = 3000;
-app.listen(port, () => {
+app.listen(port, "127.0.0.1", () => {
   console.log(`App listening on port ${port}`);
 })
 
@@ -163,7 +163,7 @@ app.get("/getLyrics", async (req, res) => {
     } else if(input === "2") {
       rl.off("line", onLineHandler);
       rl.pause();
-      res.status(200).send(`<pre>${lyrics}<pre>`);
+      res.status(200).type("text/plain").send(lyrics);
       process.exit(0);
     } else {
       console.log("不適切な値が入力されました。\n1,2のどちらかを入力してください。");
@@ -259,7 +259,7 @@ app.get("/geminiAnalyzeLyrics", async(req, res) => {
     if(prompt === formatLyricsPrompt) {
       if(interaction.output_text === "null") {
         console.log("日本語詞ではないため、形態素解析が行えません。");
-        res.send(`<pre>日本語詞ではないため、形態素解析が行えません。\n${lyrics}<pre>`);
+        res.type("text/plain").send(`日本語詞ではないため、形態素解析が行えません。\n${lyrics}`);
         process.exit(0);
       } else {
         const tokenizer = await buildTokenizer();
@@ -270,7 +270,7 @@ app.get("/geminiAnalyzeLyrics", async(req, res) => {
       }
     } else {
       console.log("分析が完了しました。");
-      res.status(200).send(`<pre>${interaction.output_text}<pre>`);
+      res.status(200).type("text/plain").send(interaction.output_text);
       process.exit(0);
     }
   } catch(error) {
